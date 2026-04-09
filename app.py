@@ -1,25 +1,74 @@
 import streamlit as st
-import pickle
+import pandas as pd
 import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
 
-# Modeli Pickle ile yükleyelim
-with open('guncel_ik_modeli.pkl', 'rb') as f:
-    model = pickle.load(f)
+# --- 1. MODELİ UYGULAMA İÇİNDE EĞİTELİM (DOSYASIZ ÇÖZÜM) ---
+@st.cache_resource
+def train_model():
+    # Veri üretimi
+    n = 2000
+    np.random.seed(42)
+    data = {
+        'Yas': np.random.randint(18, 50, n),
+        'Cinsiyet': np.random.choice(['Erkek', 'Kadın'], n),
+        'Egitim': np.random.choice(['Lise', 'Lisans', 'Yüksek Lisans', 'Doktora'], n),
+        'Deneyim_Yili': np.random.randint(0, 20, n),
+        'Ingilizce': np.random.choice(['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], n),
+        'Ek_Dil': np.random.choice(['Yok', 'Almanca', 'Fransızca', 'İspanyolca'], n),
+        'Excel': np.random.choice([0, 1], n),
+        'SQL': np.random.choice([0, 1], n),
+        'Python': np.random.choice([0, 1], n),
+        'Basvuru_Kaynagi': np.random.choice(['LinkedIn', 'Referans', 'Kariyer.net', 'Sirket Web'], n)
+    }
+    df = pd.DataFrame(data)
 
-st.set_page_config(page_title="Gelişmiş İK Analizi", layout="centered")
+    # Karar Mantığı
+    def karar(row):
+        puan = 0
+        if row['SQL'] == 1: puan += 4
+        if row['Python'] == 1: puan += 5
+        if row['Excel'] == 1: puan += 2
+        puan += {'A1':0, 'A2':1, 'B1':2, 'B2':3, 'C1':4, 'C2':5}[row['Ingilizce']]
+        if row['Basvuru_Kaynagi'] == 'Referans': puan += 2 
+        puan += {'Lise':1, 'Lisans':3, 'Yüksek Lisans':4, 'Doktora':5}[row['Egitim']]
+        if row['Deneyim_Yili'] > 2: puan += 3
+        return 1 if puan + np.random.randint(0, 5) > 16 else 0
+
+    df['target'] = df.apply(karar, axis=1)
+
+    # Encoding
+    le_dict = {}
+    for col in ['Cinsiyet', 'Egitim', 'Ingilizce', 'Ek_Dil', 'Basvuru_Kaynagi']:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        le_dict[col] = le
+
+    X = df.drop('target', axis=1)
+    y = df['target']
+    model = RandomForestClassifier(n_estimators=50, random_state=42)
+    model.fit(X, y)
+    return model, le_dict
+
+# Modeli ve encoder'ları oluştur
+model, encoders = train_model()
+
+# --- 2. ARAYÜZ ---
+st.set_page_config(page_title="İK Analiz Paneli", layout="centered")
 st.title("📊 Profesyonel İşe Alım Simülatörü v2")
 
 with st.form("yeni_form"):
     col1, col2 = st.columns(2)
     with col1:
         yas = st.number_input("Yaş", 18, 60, 22)
-        cinsiyet = st.selectbox("Cinsiyet", [1, 0], format_func=lambda x: "Erkek" if x==1 else "Kadın")
-        egitim = st.selectbox("Eğitim Seviyesi", [2, 1, 3, 0], format_func=lambda x: {2:"Lisans", 1:"Lise", 3:"Yüksek Lisans", 0:"Doktora"}[x])
+        cinsiyet = st.selectbox("Cinsiyet", ["Erkek", "Kadın"])
+        egitim = st.selectbox("Eğitim Seviyesi", ["Lisans", "Lise", "Yüksek Lisans", "Doktora"])
         deneyim = st.slider("Deneyim Yılı", 0, 25, 2)
     with col2:
-        ing = st.selectbox("İngilizce", [0, 1, 2, 3, 4, 5], format_func=lambda x: {0:"A1", 1:"A2", 2:"B1", 3:"B2", 4:"C1", 5:"C2"}[x])
-        ek_dil = st.selectbox("Ek Yabancı Dil", [3, 0, 1, 2], format_func=lambda x: {3:"Yok", 0:"Almanca", 1:"Fransızca", 2:"İspanyolca"}[x])
-        kaynak = st.selectbox("Başvuru Kanalı", [1, 2, 0, 3], format_func=lambda x: {1:"LinkedIn", 2:"Referans", 0:"Kariyer.net", 3:"Şirket Web"}[x])
+        ing = st.selectbox("İngilizce", ["A1", "A2", "B1", "B2", "C1", "C2"])
+        ek_dil = st.selectbox("Ek Yabancı Dil", ["Yok", "Almanca", "Fransızca", "İspanyolca"])
+        kaynak = st.selectbox("Başvuru Kanalı", ["LinkedIn", "Referans", "Kariyer.net", "Şirket Web"])
 
     st.subheader("Teknik Yetkinlikler")
     c1, c2, c3 = st.columns(3)
@@ -27,7 +76,19 @@ with st.form("yeni_form"):
     submit = st.form_submit_button("Analiz Et 🚀")
 
 if submit:
-    girdi = np.array([[yas, cinsiyet, egitim, deneyim, ing, ek_dil, int(excel), int(sql), int(python), kaynak]])
+    # Girdileri sayısallaştıralım
+    girdi_list = [
+        yas,
+        encoders['Cinsiyet'].transform([cinsiyet])[0],
+        encoders['Egitim'].transform([egitim])[0],
+        deneyim,
+        encoders['Ingilizce'].transform([ing])[0],
+        encoders['Ek_Dil'].transform([ek_dil])[0],
+        int(excel), int(sql), int(python),
+        encoders['Basvuru_Kaynagi'].transform([kaynak])[0]
+    ]
+    
+    girdi = np.array([girdi_list])
     olasilik = model.predict_proba(girdi)[0][1]
     
     if olasilik > 0.5:
