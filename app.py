@@ -1,9 +1,22 @@
 import streamlit as st
 import joblib
 import numpy as np
+import os
 
-# Modeli Yükle
-model = joblib.load('guncel_ik_modeli.pkl')
+# Model dosyasının yolu
+MODEL_PATH = 'guncel_ik_modeli.pkl'
+
+# Hata ayıklama için kontrol
+if not os.path.exists(MODEL_PATH):
+    st.error(f"Dosya bulunamadı: {MODEL_PATH}")
+    st.stop()
+
+try:
+    model = joblib.load(MODEL_PATH)
+except Exception as e:
+    st.error(f"Model yüklenirken bir hata oluştu: {e}")
+    st.info("İpucu: Eğer 'KeyError' alıyorsan, bu genellikle kütüphane sürüm farkından olur. Merak etme, çözüyoruz!")
+    st.stop()
 
 st.set_page_config(page_title="Gelişmiş İK Analizi", layout="centered")
 st.title("📊 Profesyonel İşe Alım Simülatörü v2")
@@ -13,13 +26,18 @@ with st.form("yeni_form"):
     
     with col1:
         yas = st.number_input("Yaş", 18, 60, 22)
+        # Cinsiyet: Erkek=1, Kadın=0 (Model eğitimine uygun sıra)
         cinsiyet = st.selectbox("Cinsiyet", [1, 0], format_func=lambda x: "Erkek" if x==1 else "Kadın")
+        # Eğitim: Doktora=0, Lise=1, Lisans=2, Yüksek Lisans=3
         egitim = st.selectbox("Eğitim Seviyesi", [2, 1, 3, 0], format_func=lambda x: {2:"Lisans", 1:"Lise", 3:"Yüksek Lisans", 0:"Doktora"}[x])
         deneyim = st.slider("Deneyim Yılı", 0, 25, 2)
         
     with col2:
+        # İngilizce: A1=0, A2=1, B1=2, B2=3, C1=4, C2=5
         ing = st.selectbox("İngilizce", [0, 1, 2, 3, 4, 5], format_func=lambda x: {0:"A1", 1:"A2", 2:"B1", 3:"B2", 4:"C1", 5:"C2"}[x])
+        # Ek Dil: Almanca=0, Fransızca=1, İspanyolca=2, Yok=3
         ek_dil = st.selectbox("Ek Yabancı Dil", [3, 0, 1, 2], format_func=lambda x: {3:"Yok", 0:"Almanca", 1:"Fransızca", 2:"İspanyolca"}[x])
+        # Kaynak: Kariyer=0, LinkedIn=1, Referans=2, Web=3
         kaynak = st.selectbox("Başvuru Kanalı", [1, 2, 0, 3], format_func=lambda x: {1:"LinkedIn", 2:"Referans", 0:"Kariyer.net", 3:"Şirket Web"}[x])
 
     st.subheader("Teknik Yetkinlikler")
@@ -31,12 +49,13 @@ with st.form("yeni_form"):
     submit = st.form_submit_button("Analiz Et 🚀")
 
 if submit:
-    # Veri sırası: Yas, Cinsiyet, Egitim, Deneyim_Yili, Ingilizce, Ek_Dil, Excel, SQL, Python, Basvuru_Kaynagi
+    # Veri sırası tam olarak Colab'deki gibi olmalı
     girdi = np.array([[yas, cinsiyet, egitim, deneyim, ing, ek_dil, int(excel), int(sql), int(python), kaynak]])
     
     olasilik = model.predict_proba(girdi)[0][1]
     
     if olasilik > 0.5:
         st.success(f"### OLUMLU ADAY ✅ \n Uygunluk Skoru: %{olasilik*100:.1f}")
+        st.balloons()
     else:
         st.error(f"### DEĞERLENDİRME AŞAMASINDA ❌ \n Uygunluk Skoru: %{olasilik*100:.1f}")
