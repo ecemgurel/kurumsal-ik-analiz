@@ -2,40 +2,41 @@ import streamlit as st
 import joblib
 import numpy as np
 
-# Modeli Yükle (İsim birebir aynı olmalı)
-model = joblib.load('ozel_sirket_modeli.pkl')
+# Modeli Yükle
+model = joblib.load('guncel_ik_modeli.pkl')
 
-st.set_page_config(page_title="İK Analiz Paneli", layout="wide")
-st.title("📈 Kurumsal İşe Alım Analiz Paneli")
-st.write("Aday kriterlerini girerek teknoloji şirketlerine kabul ihtimalini test edin.")
+st.set_page_config(page_title="Gelişmiş İK Analizi", layout="centered")
+st.title("📊 Profesyonel İşe Alım Simülatörü v2")
 
-with st.form("basvuru_formu"):
+with st.form("yeni_form"):
     col1, col2 = st.columns(2)
+    
     with col1:
-        yas = st.number_input("Yaş", 21, 50, 25)
+        yas = st.number_input("Yaş", 18, 60, 22)
         cinsiyet = st.selectbox("Cinsiyet", [1, 0], format_func=lambda x: "Erkek" if x==1 else "Kadın")
-        egitim = st.selectbox("Eğitim", [1, 2, 0], format_func=lambda x: {1:"Lisans", 2:"Yüksek Lisans", 0:"Doktora"}[x])
-        deneyim = st.slider("Deneyim Yılı", 0, 20, 3)
-    
+        egitim = st.selectbox("Eğitim Seviyesi", [2, 1, 3, 0], format_func=lambda x: {2:"Lisans", 1:"Lise", 3:"Yüksek Lisans", 0:"Doktora"}[x])
+        deneyim = st.slider("Deneyim Yılı", 0, 25, 2)
+        
     with col2:
-        ingilizce = st.selectbox("İngilizce Seviyesi", [0, 1, 2, 3], format_func=lambda x: {0:"B1", 1:"B2", 2:"C1", 3:"C2"}[x])
-        sql = st.checkbox("SQL Biliyorum")
-        python = st.checkbox("Python Biliyorum")
-        excel = st.checkbox("Excel Biliyorum")
-        sertifika = st.number_input("Sertifika Sayısı", 0, 10, 0)
-        referans = st.selectbox("Başvuru Kanalı", [1, 2, 0, 3], format_func=lambda x: {1:"LinkedIn", 2:"Referans", 0:"Kariyer.net", 3:"Web Sitesi"}[x])
+        ing = st.selectbox("İngilizce", [0, 1, 2, 3, 4, 5], format_func=lambda x: {0:"A1", 1:"A2", 2:"B1", 3:"B2", 4:"C1", 5:"C2"}[x])
+        ek_dil = st.selectbox("Ek Yabancı Dil", [3, 0, 1, 2], format_func=lambda x: {3:"Yok", 0:"Almanca", 1:"Fransızca", 2:"İspanyolca"}[x])
+        kaynak = st.selectbox("Başvuru Kanalı", [1, 2, 0, 3], format_func=lambda x: {1:"LinkedIn", 2:"Referans", 0:"Kariyer.net", 3:"Şirket Web"}[x])
+
+    st.subheader("Teknik Yetkinlikler")
+    c1, c2, c3 = st.columns(3)
+    sql = c1.checkbox("SQL")
+    python = c2.checkbox("Python")
+    excel = c3.checkbox("Excel")
     
-    submit = st.form_submit_button("Adayı Analiz Et 🚀")
+    submit = st.form_submit_button("Analiz Et 🚀")
 
 if submit:
-    # Modelin beklediği veri sırası:
-    # Yas, Cinsiyet, Egitim, Deneyim_Yili, Ingilizce, Excel, SQL, Python, Sertifika_Sayisi, Basvuru_Kaynagi
-    girdi = np.array([[yas, cinsiyet, egitim, deneyim, ingilizce, int(excel), int(sql), int(python), sertifika, referans]])
-    tahmin = model.predict(girdi)
+    # Veri sırası: Yas, Cinsiyet, Egitim, Deneyim_Yili, Ingilizce, Ek_Dil, Excel, SQL, Python, Basvuru_Kaynagi
+    girdi = np.array([[yas, cinsiyet, egitim, deneyim, ing, ek_dil, int(excel), int(sql), int(python), kaynak]])
+    
     olasilik = model.predict_proba(girdi)[0][1]
-
-    if tahmin[0] == 1:
-        st.success(f"### SONUÇ: OLUMLU ✅ \n Kabul edilme ihtimali: **%{olasilik*100:.1f}**")
-        st.balloons()
+    
+    if olasilik > 0.5:
+        st.success(f"### OLUMLU ADAY ✅ \n Uygunluk Skoru: %{olasilik*100:.1f}")
     else:
-        st.error(f"### SONUÇ: OLUMSUZ ❌ \n Uygunluk skoru: **%{olasilik*100:.1f}**")
+        st.error(f"### DEĞERLENDİRME AŞAMASINDA ❌ \n Uygunluk Skoru: %{olasilik*100:.1f}")
